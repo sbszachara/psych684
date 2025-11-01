@@ -30,3 +30,25 @@ footer {
   padding: 1rem;
   background: #f4f4f4;
 }
+
+
+nav a:hover {
+  background-color: #0056b3;
+}
+
+#pdf-display {
+  margin: 20px auto;
+  position: relative;
+  padding-top: 50%;
+}
+
+#pdf-display iframe {
+  position: absolute;
+  top: 0; 
+  left: 0;
+  width: 75%; 
+  height: 100%;
+  border: 1px solid #ccc;
+}
+
+
