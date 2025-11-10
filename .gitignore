@@ -1,0 +1,9 @@
+# ignore dataset files
+*.tar
+*.tar.gz
+*.tgz
+*.tar.bz2
+*.tar.xz
+*.gz
+
+/cv_22_delta
