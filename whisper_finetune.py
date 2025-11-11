@@ -3,7 +3,8 @@ import os
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import Dataset
+#from torch.utils.data import Dataset
+from datasets import Dataset, Audio
 import torchaudio
 from peft import LoraConfig, PeftModel
 from huggingface_hub import login
@@ -79,18 +80,34 @@ def load_whisper():
 
 if __name__ == '__main__':
     mozillaPath = 'cv_22_delta/en/validated.tsv'
+    audioPath   = 'cv_22_delta/en/clips'
     cvDelta = pd.read_csv(mozillaPath, sep='\t')
+
+
     # print(cvDelta.head)
     # print(cvDelta.columns)
     # print(len(cvDelta))
-    cleaned_cv = cvDelta.dropna(subset=['age', 'gender', 'accents'])
+    cvDelta = cvDelta.dropna(subset=['age', 'gender', 'accents'])
     # print(len(cvDelta))
+
+    cvDelta['path'] = cvDelta['path'].apply(lambda x: os.path.join(audioPath, x))
+
+    cvDelta = cvDelta.rename(columns={'sentence': 'text'})
+
+    cvDelta = Dataset.from_pandas(cvDelta)
+
+    # casts path column to type that can be automatically loaded and resampled
+    cvDelta = cvDelta.cast_column("path", Audio(sampling_rate=16000))
+
+    cvDelta = cvDelta.train_test_split(test_size=0.1)
+
+
     sampling_rate = 16000
 
     # Prepare dataset for training
     def prepare_dataset(batch, processor):
         # Load audio
-        audio = batch["audio"]
+        audio = batch["path"]
 
         # Compute log-Mel spectrogram and input features
         batch["input_features"] = processor.feature_extractor(
@@ -105,9 +122,9 @@ if __name__ == '__main__':
     model = load_whisper()
 
     # Apply preprocessing to all splits concurrently
-    dataset = dataset.map(
+    cvDelta =  cvDelta.map(
         prepare_dataset,
-        remove_columns=dataset.column_names["train"],
+        remove_columns= cvDelta.column_names["train"],
         num_proc=4,
         fn_kwargs={"processor": processor}
     )
@@ -160,7 +177,7 @@ if __name__ == '__main__':
     # Training arguments
     # For NVIDIA: Several arguments can be changed to improve performance
     training_args = Seq2SeqTrainingArguments(
-        output_dir="./whisper-medical-finetuned",
+        output_dir="./whisper-mozilla-finetuned",
         per_device_train_batch_size=8,
         per_device_eval_batch_size=8,
         gradient_accumulation_steps=1,
@@ -173,7 +190,7 @@ if __name__ == '__main__':
         save_steps=100,
         do_train=True,
         do_eval=True,
-        fp16=False, # For NVIDIA: Set to true
+        fp16=True, # for nvidia set to true
         load_best_model_at_end=True,
         metric_for_best_model="wer",
         greater_is_better=False,
@@ -187,9 +204,33 @@ if __name__ == '__main__':
         model=model,
         args=training_args,
         compute_metrics=compute_metrics,
-        train_dataset=dataset["train"],
-        eval_dataset=dataset["validation"],
+        train_dataset= cvDelta["train"],
+        eval_dataset= cvDelta["test"],
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
         data_collator=data_collator,
     )
+
+    # Perform training
+    trainer.train()
+
+    # Save adapter weights
+    trainer.save_model("./whisper-mozilla-finetuned-adapter")
+
+    # Load base model fully
+    base_model = WhisperForConditionalGeneration.from_pretrained(model_id).to(device)
+
+    # Load adapter weights
+    lora_model = PeftModel.from_pretrained(base_model, "./whisper-mozilla-finetuned-adapter")
+
+    # Merge adapter weights into base model for deployment and further evaluation
+    merged_model = lora_model.merge_and_unload()
+    
+    # Move the model to CPU
+    merged_model = merged_model.to('cpu') 
+    
+    merged_model.save_pretrained("./whisper-mozilla-finetuned-adapter")
+    
+    processor.save_pretrained("./whisper-mozilla-finetuned-adapter")
+
+    print("Fine-tuning complete. Merged model should be saved in: ./whisper-mozilla-finetuned-adapter")
 

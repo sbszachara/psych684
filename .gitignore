@@ -6,4 +6,8 @@
 *.tar.xz
 *.gz
 
+
 /cv_22_delta
+/cv_21_delta
+
+/whisper-mozilla-finetuned
