@@ -3,12 +3,13 @@ import os
 import numpy as np
 import pandas as pd
 import torch
-#from torch.utils.data import Dataset
+# from torch.utils.data import Dataset
 from datasets import Dataset, Audio
 import torchaudio
 from peft import LoraConfig, PeftModel
-from huggingface_hub import login
+# from huggingface_hub import login
 import evaluate
+import argparse
 
 from transformers import (
     WhisperProcessor,
@@ -79,8 +80,13 @@ def load_whisper():
 
 
 if __name__ == '__main__':
-    mozillaPath = 'cv_22_delta/en/validated.tsv'
-    audioPath   = 'cv_22_delta/en/clips'
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("path", help="path to MVC folder containing the 'en' folder")
+    args = ap.parse_args()
+
+    mozillaPath = f'{args.path}/en/validated.tsv'
+    audioPath   = f'{args.path}/en/clips'
     cvDelta = pd.read_csv(mozillaPath, sep='\t')
 
 
@@ -93,14 +99,11 @@ if __name__ == '__main__':
     cvDelta['path'] = cvDelta['path'].apply(lambda x: os.path.join(audioPath, x))
 
     cvDelta = cvDelta.rename(columns={'sentence': 'text'})
-
     cvDelta = Dataset.from_pandas(cvDelta)
 
     # casts path column to type that can be automatically loaded and resampled
     cvDelta = cvDelta.cast_column("path", Audio(sampling_rate=16000))
-
     cvDelta = cvDelta.train_test_split(test_size=0.1)
-
 
     sampling_rate = 16000
 

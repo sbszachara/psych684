@@ -6,8 +6,14 @@
 *.tar.xz
 *.gz
 
+# extra layer of protection, this ignores folders with the original name of the downloaded MVC
+# 
+**/*cv-corpus*/
+**/*cv-corpus*
 
+# add custom folder names here 
 /cv_22_delta
 /cv_21_delta
 
 /whisper-mozilla-finetuned
+
