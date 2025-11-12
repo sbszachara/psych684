@@ -9,7 +9,7 @@
 
 https://commonvoice.mozilla.org/en/datasets
 
-Extrac them anywhere. For ease of use, the compressed files and their extracteed contents can remain safely in the local directory during development. They will be ignored by the .gitignore.
+Extract them anywhere. For ease of use, the compressed files and their extracted contents can remain safely in the local directory during development. They will be ignored by the .gitignore.
 
 ### 3.) Activate Environment and Run Files
 
