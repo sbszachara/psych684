@@ -16,6 +16,7 @@ from transformers import (
     WhisperForConditionalGeneration,
     Seq2SeqTrainingArguments,
     Seq2SeqTrainer,
+    TrainerCallback,
 )
 
 
@@ -51,6 +52,90 @@ class CustomDataCollator:
         return batch
     
 
+
+# evaluates wer based on given group (gender, age, accent):
+def group_wer(group, dataset, model, processor, batch_size=8, subgroup=[]):
+    groups = {}
+    
+    # get all the categories
+    set_groups = set(dataset[group])
+    
+    for currGroup in set_groups:
+        # gets subset of data that is in that group
+        subset = dataset.filter(lambda x: x[group] == currGroup)
+        if len(subset) == 0:
+            continue # shouldnt be empty but just in case
+        
+        # need to run predictions
+        preds = []
+        refs  = []
+
+        # loop thru subset by batch size
+        for i in range(0, len(subset), batch_size):
+            batch = subset[i : i + batch_size]
+
+            input_features = torch.tensor(batch["input_features"]).to(model.device)
+            
+            with torch.no_grad():
+                predicted_ids = model.generate(input_features)
+            
+            pred_str = processor.batch_decode(predicted_ids, skip_special_tokens=True)
+
+            label_ids = []
+
+            # should return the labels we need
+            for seq in batch["labels"]:
+                label_ids.append([
+                    processor.tokenizer.pad_token_id if t == -100 else t
+                    for t in seq
+                ])
+
+            # decodes
+            label_str = processor.batch_decode(label_ids, skip_special_tokens=True)
+
+            preds.extend(pred_str)
+            refs.extend(label_str)
+        # get WER of this particular group
+        wer = wer_metric.compute(predictions=preds, references=refs)
+        groups[currGroup] = wer
+    
+    return groups
+    
+
+# also need a custom class for the training callback for WER parity.
+class WERParityCallback(TrainerCallback):
+    def __init__(self, eval_dataset, model, processor, group, subgroups = []):
+        self.eval_dataset = eval_dataset
+        self.model = model
+        self.processor = processor
+        self.group   = group
+        self.subgroups = subgroups
+
+    # thiis is returned in the seq2seq trainer object as a custom eval metric
+    def on_evaluate(self, args, state, control, **kwargs):
+        
+        results = group_wer(
+            self.group,
+            self.eval_dataset,
+            self.model,
+            self.processor,
+        )
+        # prints WER for each category
+        for category, wer in results.items():
+            print(f"  {category}: {wer:.4f}")
+
+        # helps look at gender parity
+        if self.group == 'gender':
+            # print WER parity between male and female
+            print("Gender WER parity:")
+            try:
+                print(results.get('male_masculine') - results.get('female_feminine'))
+            except:
+                print("Missing WER metric for this entry")
+        
+        
+
+
 # Returns predicted token IDs as a PyTorch tensor, allowing Trainer's internal utilities to handle final conversion to numpy.
 def preprocess_logits_for_metrics(logits, labels):
     if isinstance(logits, tuple):
@@ -66,7 +151,6 @@ def preprocess_logits_for_metrics(logits, labels):
     return pred_ids, labels
 
 
-
 def load_whisper():
     # processor = WhisperProcessor.from_pretrained(model_id)
 
@@ -77,6 +161,8 @@ def load_whisper():
     )
     model.to(device)
     return model
+
+
 
 
 if __name__ == '__main__':
@@ -96,6 +182,11 @@ if __name__ == '__main__':
     cvDelta = cvDelta.dropna(subset=['age', 'gender', 'accents'])
     # print(len(cvDelta))
 
+    print("Demographic info:")
+    print(cvDelta['gender'].value_counts())
+    print((cvDelta['gender'].value_counts(normalize=True) * 100).round(2))
+
+
     cvDelta['path'] = cvDelta['path'].apply(lambda x: os.path.join(audioPath, x))
 
     cvDelta = cvDelta.rename(columns={'sentence': 'text'})
@@ -106,6 +197,16 @@ if __name__ == '__main__':
     cvDelta = cvDelta.train_test_split(test_size=0.1)
 
     sampling_rate = 16000
+
+    # curious about demographic distribution after split
+    train_demo = cvDelta["train"].to_pandas()
+    test_demo  = cvDelta["test"].to_pandas()
+
+    print("Train distribution:")
+    print(train_demo["gender"].value_counts())
+
+    print("Test distribution:")
+    print(test_demo["gender"].value_counts())
 
     # Prepare dataset for training
     def prepare_dataset(batch, processor):
@@ -127,7 +228,8 @@ if __name__ == '__main__':
     # Apply preprocessing to all splits concurrently
     cvDelta =  cvDelta.map(
         prepare_dataset,
-        remove_columns= cvDelta.column_names["train"],
+        #remove_columns= cvDelta.column_names["train"],
+        remove_columns = ['path', 'text'], # keep demographic features for now
         num_proc=4,
         fn_kwargs={"processor": processor}
     )
@@ -203,14 +305,26 @@ if __name__ == '__main__':
     # Initialize trainer and collator
     data_collator = CustomDataCollator(processor=processor)
 
+    # create gender WER training callback for bias detection
+
+    gender_WER_parity = WERParityCallback(
+        eval_dataset = cvDelta["test"],
+        model = model,
+        processor = processor,
+        group = 'gender'
+    )
+
     trainer = Seq2SeqTrainer(
-        model=model,
-        args=training_args,
-        compute_metrics=compute_metrics,
-        train_dataset= cvDelta["train"],
-        eval_dataset= cvDelta["test"],
+        model = model,
+        args = training_args,
+        compute_metrics = compute_metrics,
+        train_dataset = cvDelta["train"],
+        eval_dataset = cvDelta["test"],
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
-        data_collator=data_collator,
+        data_collator = data_collator,
+        # can add as many callbacks as we want here
+        # maybe todo: detect group arguments and add them
+        callbacks = [gender_WER_parity]
     )
 
     # Perform training
