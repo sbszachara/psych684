@@ -11,9 +11,10 @@
 **/*cv-corpus*/
 **/*cv-corpus*
 
-# add custom folder names here 
 /cv_22_delta
 /cv_21_delta
-
+/mcv-scripted-en-v23.0
+/cv-corpus-23.0-2025-09-05
 /whisper-mozilla-finetuned
 
+__pycache__/

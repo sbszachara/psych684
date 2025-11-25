@@ -197,6 +197,8 @@ if __name__ == '__main__':
 
     ap = argparse.ArgumentParser()
     ap.add_argument("path", help="path to MVC folder containing the 'en' folder")
+    ap.add_argument("--sample-size", type = int, default = 2000, help="how many samples to grab from mv")
+    ap.add_argument("--seed", type = int, default = 42, help = "random seed to use")
     args = ap.parse_args()
 
     mozillaPath = f'{args.path}/en/validated.tsv'
@@ -209,6 +211,12 @@ if __name__ == '__main__':
     # print(len(cvDelta))
     cvDelta = cvDelta.dropna(subset=['age', 'gender', 'accents'])
     # print(len(cvDelta))
+
+    # if the tsv is huge, grab a more reasonable sample
+    # there are over 900,000 clips in MCV even after the above dropna so this is necessary.
+
+    cvDelta = cvDelta.sample(n=min(args.sample_size, len(cvDelta)), random_state=args.seed)
+
 
     print("Demographic info:")
     print(cvDelta['gender'].value_counts())
@@ -348,11 +356,11 @@ if __name__ == '__main__':
         gradient_accumulation_steps=1,
         learning_rate=1e-5,
         num_train_epochs=10,
-        logging_steps=50,
+        logging_steps=100,
         eval_strategy="steps",
-        eval_steps=100,
+        eval_steps=800,
         save_strategy="steps",
-        save_steps=100,
+        save_steps=800,
         do_train=True,
         do_eval=True,
         fp16=True, # for nvidia set to true
