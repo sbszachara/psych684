@@ -1,0 +1,115 @@
+whisper tiny
+American English only
+2000 randomly selected clips, train test split 80-20
+
+
+Demographic info:
+gender
+male_masculine     1425
+female_feminine     575
+Name: count, dtype: int64
+gender
+male_masculine     71.25
+female_feminine    28.75
+Name: proportion, dtype: float64
+GRAFN training set size: 2000 (male/female only)
+GRAFN: learned gender-specific spectral filters.
+Train distribution:
+gender
+male_masculine     1131
+female_feminine     469
+Name: count, dtype: int64
+Test distribution:
+gender
+male_masculine     294
+female_feminine    106
+
+
+CONTROL
+WER Male : 0.1761
+WER Female: .1805
+WER Parity: -.0043819
+
+
+WITH GRAFN:
+female_feminine: 0.2057
+male_masculine: 0.2264
+Gender WER parity:
+0.02078861006242752
+
+
+
+Demographic info:
+gender
+female_feminine    1000
+male_masculine     1000
+Name: count, dtype: int64
+gender
+female_feminine    50.0
+male_masculine     50.0
+Name: proportion, dtype: float64
+Train distribution:
+gender
+female_feminine    809
+male_masculine     791
+Name: count, dtype: int64
+Test distribution:
+gender
+male_masculine     209
+female_feminine    191
+
+CONTROL
+ female_feminine: 0.1702
+  male_masculine: 0.1784
+Gender WER parity:
+0.008282998800751062
+
+GRAFN
+  female_feminine: 0.2254
+  male_masculine: 0.2347
+Gender WER parity:
+0.009288976801503063
+
+
+
+
+
+
+Whisper Small
+American English only
+2000 randomly selected clips, train test split 80-20
+
+Demographic info:
+gender
+female_feminine    1000
+male_masculine     1000
+Name: count, dtype: int64
+gender
+female_feminine    50.0
+male_masculine     50.0
+Name: proportion, dtype: float64
+Train distribution:
+gender
+female_feminine    809
+male_masculine     791
+Name: count, dtype: int64
+Test distribution:
+gender
+male_masculine     209
+female_feminine    191
+
+CONTROL
+  male_masculine: 0.2151
+  female_feminine: 0.2915
+Gender WER parity:
+-0.0763830629678375
+
+GRAFN
+  female_feminine: 1.5325
+  male_masculine: 1.6591
+Gender WER parity:
+0.1265801964578972
+
+
+
+

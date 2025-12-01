@@ -15,6 +15,7 @@
 /cv_21_delta
 /mcv-scripted-en-v23.0
 /cv-corpus-23.0-2025-09-05
-/whisper-mozilla-finetuned
+/*whisper-mozilla-finetuned*
+/small_mcv_tenThousand
 
 __pycache__/

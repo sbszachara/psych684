@@ -22,8 +22,8 @@ from transformers import (
 # >>> GRAFN import <<<
 from grafn import GRAFNNormalizer
 
-hf_token = 'INSERT_HF_TOKEN'
-model_id = "openai/whisper-tiny"
+# hf_token = 'INSERT_HF_TOKEN'
+model_id = "openai/whisper-small"
 wer_metric = evaluate.load("wer")
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -211,16 +211,26 @@ if __name__ == '__main__':
     # print(len(cvDelta))
     cvDelta = cvDelta.dropna(subset=['age', 'gender', 'accents'])
     # print(len(cvDelta))
-
+    cvDelta = cvDelta.loc[cvDelta['accents']=="United States English"]
     # if the tsv is huge, grab a more reasonable sample
     # there are over 900,000 clips in MCV even after the above dropna so this is necessary.
 
-    cvDelta = cvDelta.sample(n=min(args.sample_size, len(cvDelta)), random_state=args.seed)
+
+    allowed = ["male_masculine", "female_feminine"]
+
+    cvDelta = cvDelta[cvDelta["gender"].isin(allowed)]
+
+    cvDelta = (
+    cvDelta.groupby("gender", group_keys=False)
+      .apply(lambda x: x.sample(n= int(args.sample_size/2), random_state=args.seed))
+    )
+
+    #cvDelta = cvDelta.sample(n=min(args.sample_size, len(cvDelta)), random_state=args.seed)
 
 
     print("Demographic info:")
     print(cvDelta['gender'].value_counts())
-    print((cvDelta['gender'].value_counts(normalize=True) * 100).round(2))
+    print((cvDelta['gender'].value_counts(normalize=True) * 100).round(6))
 
 
     cvDelta['path'] = cvDelta['path'].apply(lambda x: os.path.join(audioPath, x))
@@ -255,7 +265,7 @@ if __name__ == '__main__':
 
     # casts path column to type that can be automatically loaded and resampled
     cvDelta = cvDelta.cast_column("path", Audio(sampling_rate=sampling_rate))
-    cvDelta = cvDelta.train_test_split(test_size=0.1)
+    cvDelta = cvDelta.train_test_split(test_size=0.2, seed=args.seed, shuffle=True)
 
     # curious about demographic distribution after split
     train_demo = cvDelta["train"].to_pandas()
@@ -264,7 +274,7 @@ if __name__ == '__main__':
     print("Train distribution:")
     print(train_demo["gender"].value_counts())
 
-    print("Test distribution:")
+    print("Test distribution:") 
     print(test_demo["gender"].value_counts())
 
     # Prepare dataset for training
@@ -364,7 +374,7 @@ if __name__ == '__main__':
         do_train=True,
         do_eval=True,
         fp16=True, # for nvidia set to true
-        load_best_model_at_end=True,
+        load_best_model_at_end=False,
         metric_for_best_model="wer",
         greater_is_better=False,
         push_to_hub=False
@@ -397,6 +407,12 @@ if __name__ == '__main__':
 
     # Perform training
     trainer.train()
+
+    print("Running final evaluation...")
+    trainer.evaluate()
+
+    print("Running final WER parity check...")
+    gender_WER_parity.on_evaluate(None, None, None)
 
     # Save adapter weights
     trainer.save_model("./whisper-mozilla-finetuned-adapter")
