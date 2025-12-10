@@ -16,5 +16,10 @@ Extract them anywhere. For ease of use, the compressed files and their extracted
 The program takes the following arguments:
 
 - the path to the folder containing 'en'.
+- the sample size of sentences to use in training.
+- the random seed to use for subset selection and train-test split.
+
 
 ```python whisper_finetune.py [path to folder]```
+
+```python updated_WF_grafn.py [path to folder]```

@@ -12,5 +12,5 @@ function showPDF(pdfFile) {
 
 
 window.onload = function() {
-  showPDF('psyc684_abstract.pdf');
+  showPDF('psych684_final.pdf');
 };
